@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using System.Linq;
 using System.Net.Sockets;
+using UnityEngine.InputSystem;
 
 [RequireComponent(typeof(SphereCoords))]
 public class FollowCamera3D : MonoBehaviour
@@ -46,6 +47,9 @@ public class FollowCamera3D : MonoBehaviour
 
 
     bool _moving = false;
+
+    private float yawOffset = 0f;
+    private float pitchOffset = 0f; 
 
     Vector3 _velocity;
     // Quaternion _angularVelocity; 
@@ -329,8 +333,15 @@ public class FollowCamera3D : MonoBehaviour
 
         _lastTargetPosition = _target.position;
 
+        float pitchCache = _sphereCoords.pitch;
+        float yawCache = _sphereCoords.yaw; 
+        
+        _sphereCoords.SetSphereCoords(_sphereCoords.radius,pitchCache + pitchOffset, yawCache + yawOffset);
+        
         transform.position = _originPosition + _sphereCoords.GetRectFromSphere();
 
+        _sphereCoords.SetSphereCoords(_sphereCoords.radius,pitchCache, yawCache);
+        
         if (_trackRotationToTarget)
         {
             // camera rotation
@@ -387,6 +398,15 @@ public class FollowCamera3D : MonoBehaviour
             //{
                 //_sphereCoords.yaw += 100f * Time.deltaTime;
             //}
+        }
+    }
+
+    public void ReadAxisOffset(InputAction.CallbackContext context)
+    {
+        if (context.performed)
+        {
+            pitchOffset += 20f * Time.deltaTime * context.ReadValue<Vector2>().y;
+            yawOffset -= 50f * Time.deltaTime * context.ReadValue<Vector2>().x; 
         }
     }
 
