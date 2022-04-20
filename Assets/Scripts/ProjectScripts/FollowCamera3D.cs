@@ -1,7 +1,8 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using System.Linq; 
+using System.Linq;
+using System.Net.Sockets;
 
 [RequireComponent(typeof(SphereCoords))]
 public class FollowCamera3D : MonoBehaviour
@@ -19,13 +20,16 @@ public class FollowCamera3D : MonoBehaviour
     [SerializeField] private float _lookAheadSeconds = 1.5f; 
     
     [SerializeField]
-    float _lookLerp = 0.007f; 
+    [Tooltip("Gets multiplied by deltaTime")]
+    float _lookLerp = 1f; 
 
     Vector3 _lookTarget; // used for angular tracking
 
     [SerializeField]
-    float _angularLerpFactor = 0.08f; // degrees
+    [Tooltip("Gets multiplied by deltaTime")]
+    float _angularLerpFactor = 1f; // degrees
 
+    [SerializeField] private float _minDistanceToTarget = 1f;
     
     [SerializeField]
     Vector3 _safeZoneExtent;
@@ -184,6 +188,8 @@ public class FollowCamera3D : MonoBehaviour
 
         var playerPos = _target.transform.position + _safezoneOffset;
 
+        bool isRetreating = false; 
+
         if (!_moving && !outerBounds.Contains(playerPos))
         {
             _moving = true;
@@ -201,23 +207,37 @@ public class FollowCamera3D : MonoBehaviour
             //_velocity = direction * _maxSpeed; 
 
         }
-        else if (_moving && innerBounds.Contains(playerPos))
+        else if (innerBounds.SqrDistance(playerPos) < _minDistanceToTarget * _minDistanceToTarget)
         {
-            _moving = false;
+            if ((_target.position - transform.position).magnitude < _minDistanceToTarget * 0.90f)
+            {
+                _moving = true;
+                isRetreating = true; 
+            }
+            else
+            {
+                _moving = false; 
+            }
         }
 
-        if (_moving)
+        if (_originPosition.y < playerPos.y)
+        {
+            _moving = true; 
+            _velocity += Vector3.up * 2.5f * Time.deltaTime; 
+        }
+
+        if (_moving && !isRetreating)
         {
             // Vector3 targetVelocity = _averageVelocity;
             // float damping = 1f;
-            //
-            // // if camera is moving opposite the player
-            // // slow it down
-            // if (Vector3.Dot(targetVelocity, _velocity) < 0f)
-            // {
-            //     damping = 1 / _catchupDampingFactor;
-            // }
-            //
+            
+            // if camera is moving opposite the player
+            // slow it down
+            if (Vector3.Dot(_averageVelocity, _velocity) < 0f)
+            {
+                _velocity *= 0.35f;
+            }
+            
             // Vector3 targetPos = playerPos; // _target.position;
             // // targetPos.z = transform.position.z;
             //
@@ -228,9 +248,62 @@ public class FollowCamera3D : MonoBehaviour
             //
             // _velocity += Time.deltaTime * acceleration;
 
-            _velocity = Vector3.Lerp(_velocity, _averageVelocity, _lookLerp); 
+            
+
+            // if (_averageVelocity.sqrMagnitude < 0.3f && !outerBounds.Contains(playerPos))
+            // {
+            //     var direction = (playerPos - _originPosition).normalized;
+            //     var acceleration = direction * _acceleration;
+            //
+            //     _velocity = Vector3.Lerp(_velocity, direction * _maxSpeed, Time.deltaTime * _lookLerp);
+            // }
+            // else
+            // {
+            //     _velocity = Vector3.Lerp(_velocity, _averageVelocity, Time.deltaTime * _lookLerp);
+            // }
+            
+            var trackDirection = (playerPos + _averageVelocity * _lookAheadSeconds - _originPosition).normalized;
+
+            var trackSpeed = Mathf.Min(_maxSpeed,
+                Vector3.Dot(trackDirection, _velocity) + _acceleration * Time.deltaTime);
+
+            var compensation = Mathf.Sign(trackSpeed) * trackSpeed * Mathf.Abs(Vector3.Dot(_averageVelocity.normalized, trackDirection)); 
+
+            var trackComponent = Mathf.Max(0f, trackSpeed - compensation) * trackDirection;
 
 
+            // var lookAheadDirection = _averageVelocity.normalized; 
+            // var lookAheadSpeed = Vector3.Dot(lookAheadDirection, _velocity);
+            //
+            // var lookAheadComponent = lookAheadDirection * lookAheadSpeed; 
+            
+            _velocity = Vector3.Lerp(_velocity, trackComponent + _averageVelocity, Time.deltaTime * _lookLerp);
+            
+            
+            // spherecoords pitch adjustment
+            var alignment = Vector3.Dot(_averageVelocity.normalized, transform.forward);
+            var cutoff = Mathf.Cos(Mathf.Deg2Rad * 45f);
+
+            if (Mathf.Abs(alignment) > cutoff)
+            {
+                float maxPitch, minPitch;
+                maxPitch = 40f;
+                minPitch = 7f;
+
+                _sphereCoords.pitch = Mathf.LerpAngle(_sphereCoords.pitch,
+                    Mathf.Sign(alignment) < 0 ? maxPitch : minPitch, Time.deltaTime);
+            } 
+            else
+            {
+                _sphereCoords.pitch = Mathf.LerpAngle(_sphereCoords.pitch, 28f,Time.deltaTime);
+                
+                // handle yawing 
+                _sphereCoords.yaw += 3f * Mathf.Sign(alignment) * Time.deltaTime; 
+            }
+
+        } else if (_moving && isRetreating)
+        {
+            _velocity += (transform.position - _target.position).normalized * _acceleration * Time.deltaTime;
         }
         else
         {
@@ -250,7 +323,7 @@ public class FollowCamera3D : MonoBehaviour
             }
         }
 
-        _velocity = Vector3.ClampMagnitude(_velocity, _maxSpeed);
+        // _velocity = Vector3.ClampMagnitude(_velocity, _maxSpeed);
 
         _originPosition += _velocity * Time.deltaTime;
 
@@ -285,13 +358,13 @@ public class FollowCamera3D : MonoBehaviour
 
             // lookPos += vel; 
 
-            _lookTarget = Vector3.Lerp(_lookTarget, lookPos, _lookAheadFactor);
+            _lookTarget = lookPos; // Vector3.Lerp(_lookTarget, lookPos, _lookAheadFactor);
 
             Quaternion temp = transform.rotation;
             transform.LookAt(_lookTarget, Vector3.up);
             Quaternion targetRotation = transform.rotation;
 
-            transform.rotation = Quaternion.Slerp(temp, targetRotation, _angularLerpFactor);
+            transform.rotation = Quaternion.Slerp(temp, targetRotation, _angularLerpFactor * Time.deltaTime);
             
             // UpdateYaw();
             
@@ -359,6 +432,9 @@ public class FollowCamera3D : MonoBehaviour
 
         Gizmos.color = Color.red;
         Gizmos.DrawWireCube(pos + scaleFactor * _outerZoneOffset, scaleFactor * _outerZoneExtent);
+
+        Gizmos.color = Color.cyan;
+        Gizmos.DrawWireSphere(_target.position, _minDistanceToTarget);
 
     }
 }

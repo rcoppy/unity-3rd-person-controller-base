@@ -404,18 +404,19 @@ MonoBehaviour:
   _target: {fileID: 1960220767}
   _trackRotationToTarget: 1
   _lookAheadFactor: 1
-  _lookAheadSeconds: 0.5
-  _lookLerp: 0.004
-  _angularLerpFactor: 0.04
-  _safeZoneExtent: {x: 3.57, y: 2.47, z: 3.37}
-  _safezoneOffset: {x: 0, y: 1.12, z: 0}
-  _outerZoneExtent: {x: 7.86, y: 5.19, z: 6.65}
+  _lookAheadSeconds: 0.3
+  _lookLerp: 2.6
+  _angularLerpFactor: 1.3
+  _minDistanceToTarget: 1.2
+  _safeZoneExtent: {x: 1, y: 1, z: 1}
+  _safezoneOffset: {x: 0, y: 0.78, z: 0}
+  _outerZoneExtent: {x: 3.5, y: 3, z: 3.5}
   _outerZoneOffset: {x: 0, y: 1.05, z: 0}
-  _friction: 0.2
-  _acceleration: 12
+  _friction: 0.3
+  _acceleration: 15
   _catchupDampingFactor: 3.5
-  _maxSpeed: 20
-  _killAcceleration: 1
+  _maxSpeed: 30
+  _killAcceleration: 0
   _scaleBoundsWithAspect: 1
   _cameraForward: {x: 0, y: 0, z: 0}
 --- !u!114 &443244289
@@ -430,8 +431,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9e3df1fb21c894131811b957e07ec3ff, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  radius: 5
-  pitch: 34
+  radius: 2
+  pitch: 28
   yaw: 0
 --- !u!1 &778169269
 GameObject:
